@@ -1,0 +1,236 @@
+<?php require_once __DIR__ . '/../partials/header.php'; ?>
+
+<?php
+if (!isset($_SESSION['user_id'])) {
+    $_SESSION['redirect_to'] = $_SERVER['REQUEST_URI'];
+    header('Location: login.php');
+    exit();
+}
+?>
+<?php
+if (!isset($_SESSION["user_id"])) {
+    header("Location: login.php");
+    exit();
+}
+
+$host = "localhost";
+$user = "root";
+$pass = "";
+$dbname = "notrax";
+$conn = new mysqli($host, $user, $pass, $dbname);
+if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
+
+$user_id = $_SESSION["user_id"];
+$email = "ناشناخته";
+$kyc_status = "ثبت نشده";
+
+$user_stmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
+$user_stmt->bind_param("i", $user_id);
+$user_stmt->execute();
+$user_stmt->bind_result($email);
+$user_stmt->fetch();
+$user_stmt->close();
+
+$kyc_stmt = $conn->prepare("SELECT status FROM kyc_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 1");
+$kyc_stmt->bind_param("i", $user_id);
+$kyc_stmt->execute();
+$kyc_stmt->bind_result($status);
+if ($kyc_stmt->fetch()) {
+    if ($status == 'pending') $kyc_status = "در انتظار بررسی";
+    elseif ($status == 'approved') $kyc_status = "تأیید شده";
+    elseif ($status == 'rejected') $kyc_status = "رد شده";
+}
+$kyc_stmt->close();
+
+$balance_stmt = $conn->prepare("SELECT currency, balance FROM wallets WHERE user_id = ?");
+$balance_stmt->bind_param("i", $user_id);
+$balance_stmt->execute();
+$result = $balance_stmt->get_result();
+$balances = [];
+while ($row = $result->fetch_assoc()) {
+    $balances[] = $row;
+}
+$balance_stmt->close();
+
+$orders_stmt = $conn->prepare("SELECT COUNT(*) FROM trades WHERE user_id = ? AND status = 'open'");
+$orders_stmt->bind_param("i", $user_id);
+$orders_stmt->execute();
+$orders_stmt->bind_result($open_orders);
+$orders_stmt->fetch();
+$orders_stmt->close();
+?>
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>داشبورد نوتراکس</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background-color: #f8f9fa;
+      font-family: Tahoma, sans-serif;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    body.dark-mode {
+      background-color: #121212;
+      color: #f1f1f1;
+    }
+    .dashboard-box {
+      max-width: 960px;
+      margin: 40px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      transition: background 0.3s;
+    }
+    .dark-mode .dashboard-box {
+      background: #1e1e1e;
+    }
+    .stat-box {
+      border-radius: 12px;
+      padding: 20px;
+      background: #f1f3f5;
+      text-align: center;
+      transition: transform 0.3s ease, background 0.3s;
+    }
+    .dark-mode .stat-box {
+      background: #2c2c2c;
+    }
+    .stat-box:hover {
+      transform: translateY(-5px);
+      background: #e9ecef;
+    }
+    .dark-mode .stat-box:hover {
+      background: #333;
+    }
+    .btn-action {
+      margin: 5px;
+    }
+    canvas {
+      max-width: 400px;
+      margin: 20px auto;
+      display: block;
+    }
+    .btn-toggle {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      z-index: 999;
+    }
+  </style>
+</head>
+<body>
+  <?php include 'header.php'; ?>
+  <div class="dashboard-box">
+    <h3 class="mb-4 text-center"><i class="bi bi-speedometer2"></i> خوش آمدید، <?php echo htmlspecialchars($email); ?>!</h3>
+
+    <div class="row">
+      <div class="col-md-4">
+        <div class="stat-box">
+          <h6><i class="bi bi-shield-check"></i> وضعیت احراز هویت</h6>
+          <p class="text-primary fw-bold"><?php echo $kyc_status; ?></p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="stat-box">
+          <h6><i class="bi bi-person-badge"></i> شناسه کاربر</h6>
+          <p class="text-muted"><?php echo $user_id; ?></p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="stat-box">
+          <h6><i class="bi bi-list-task"></i> سفارشات باز</h6>
+          <p class="text-danger fw-bold"><?php echo $open_orders; ?></p>
+        </div>
+      </div>
+    </div>
+
+    <h5 class="mt-4">💰 موجودی کیف پول:</h5>
+    <ul class="list-group mb-4">
+      <?php foreach ($balances as $b): ?>
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <?php echo htmlspecialchars($b['currency']); ?>
+          <span class="badge bg-success rounded-pill"><?php echo htmlspecialchars($b['balance']); ?></span>
+        </li>
+      <?php endforeach; ?>
+    </ul>
+
+    <canvas id="walletChart"></canvas>
+
+    <div class="text-center mt-4">
+      <a href="../kyc.php" class="btn btn-warning btn-action">📤 ارسال مدارک</a>
+      <a href="../market.php" class="btn btn-info btn-action">📈 بازار</a>
+      <a href="../wallet.php" class="btn btn-success btn-action">💼 کیف پول</a>
+      <a href="../account.php" class="btn btn-outline-primary btn-action">⚙️ حساب کاربری</a>
+      <a href="../logout.php" class="btn btn-outline-danger btn-action">🚪 خروج</a>
+    </div>
+  </div>
+
+  <button id="darkToggle" class="btn btn-outline-secondary btn-sm btn-toggle">🌙 حالت شب</button>
+
+  <script>
+    const ctx = document.getElementById('walletChart').getContext('2d');
+    const walletChart = new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: <?php echo json_encode(array_column($balances, 'currency')); ?>,
+        datasets: [{
+          label: 'موجودی',
+          data: <?php echo json_encode(array_column($balances, 'balance')); ?>,
+          backgroundColor: ['#4caf50','#2196f3','#ff9800','#e91e63','#9c27b0']
+        }]
+      },
+      options: {
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: document.body.classList.contains("dark-mode") ? '#f1f1f1' : '#000'
+            }
+          }
+        }
+      }
+    });
+
+    const toggle = document.getElementById("darkToggle");
+    const body = document.body;
+    const navbar = document.getElementById("mainNavbar");
+
+    function applyTheme(isDark) {
+  if (isDark) {
+    body.classList.add("dark-mode");
+    toggle.innerText = "☀️ حالت روشن";
+    const navbar = document.querySelector(".navbar");
+    if (navbar) {
+      navbar.classList.remove("bg-light", "navbar-light");
+      navbar.classList.add("bg-dark", "navbar-dark");
+    }
+  } else {
+    body.classList.remove("dark-mode");
+    toggle.innerText = "🌙 حالت شب";
+    const navbar = document.querySelector(".navbar");
+    if (navbar) {
+      navbar.classList.remove("bg-dark", "navbar-dark");
+      navbar.classList.add("bg-light", "navbar-light");
+    }
+  }
+}
+
+
+    toggle.addEventListener("click", () => {
+      const isDark = !body.classList.contains("dark-mode");
+      applyTheme(isDark);
+      localStorage.setItem("darkMode", isDark ? "1" : "0");
+    });
+
+    window.onload = () => {
+      const saved = localStorage.getItem("darkMode") === "1";
+      applyTheme(saved);
+    };
+  </script>
+</body>
+</html>

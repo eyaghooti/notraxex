@@ -1,0 +1,172 @@
+<?php require_once __DIR__ . '/../partials/header.php'; ?>
+
+<?php session_start(); ?>
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>نوتراکس | صرافی حرفه‌ای ارز دیجیتال</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <link rel="icon" href="assets/img/favicon.jpg">
+  <style>
+    body.dark-mode { background-color: #121212; color: #f1f1f1; }
+    .navbar.dark-mode, .footer.dark-mode, .card.dark-mode {
+      background-color: #1e1e1e !important;
+      color: #f1f1f1 !important;
+    }
+    .hero {
+      background: linear-gradient(to right, #4e54c8, #8f94fb);
+      color: white;
+      padding: 60px 20px;
+      text-align: center;
+      border-radius: 0 0 40px 40px;
+    }
+    .btn-toggle {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      z-index: 999;
+    }
+    .section {
+      margin-top: 50px;
+      animation: fadeIn 1s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .card:hover { transform: translateY(-4px); transition: 0.3s; }
+    .card a {
+      color: inherit;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+<?php include 'header.php'; ?>
+
+<div class="hero">
+  <h1>به نوتراکس خوش آمدید 👋</h1>
+  <p>صرافی سریع، امن و حرفه‌ای برای خرید و فروش رمز ارزها</p>
+  <a href="register.php" class="btn btn-light mt-3">همین حالا شروع کنید</a>
+</div>
+
+<div class="container text-center">
+  <div class="section">
+    <h4>📊 قیمت‌های لحظه‌ای بازار</h4>
+    <div id="market" class="row mt-4">
+      <div class="col-md-4"><div class="card p-3"><h5>BTC</h5><p><span id="btcPrice">...</span></p></div></div>
+      <div class="col-md-4"><div class="card p-3"><h5>ETH</h5><p><span id="ethPrice">...</span></p></div></div>
+      <div class="col-md-4"><div class="card p-3"><h5>BNB</h5><p><span id="bnbPrice">...</span></p></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h4>⚙️ امکانات نوتراکس</h4>
+    <div class="row mt-4">
+      <div class="col-md-4">
+        <a href="wallet.php">
+          <div class="card p-3"><i class="bi bi-wallet2 fs-3"></i><p>کیف پول اختصاصی برای هر کاربر</p></div>
+        </a>
+      </div>
+      <div class="col-md-4">
+        <a href="trade.php">
+          <div class="card p-3"><i class="bi bi-lightning-charge-fill fs-3"></i><p>امکان ترید سریع و پیشرفته</p></div>
+        </a>
+      </div>
+      <div class="col-md-4">
+        <a href="profile.php">
+          <div class="card p-3"><i class="bi bi-lock-fill fs-3"></i><p>احراز هویت KYC و امنیت کامل</p></div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h4>📰 مقالات اخیر</h4>
+    <div class="row mt-4">
+      <div class="col-md-4">
+        <a href="blog.php" class="text-decoration-none text-dark">
+          <div class="card p-3 h-100 shadow-sm">
+            <h6>تحلیل تکنیکال بیت‌کوین</h6>
+            <p>نگاهی به وضعیت بازار BTC در هفته اخیر...</p>
+          </div>
+        </a>
+      </div>
+      <div class="col-md-4">
+        <a href="blog.php" class="text-decoration-none text-dark">
+          <div class="card p-3 h-100 shadow-sm">
+            <h6>تفاوت کیف‌پول‌ها</h6>
+            <p>مقایسه کیف‌پول سخت‌افزاری و نرم‌افزاری</p>
+          </div>
+        </a>
+      </div>
+      <div class="col-md-4">
+        <a href="blog.php" class="text-decoration-none text-dark">
+          <div class="card p-3 h-100 shadow-sm">
+            <h6>۵ اشتباه رایج معامله‌گران</h6>
+            <p>این اشتباهات سرمایه شما را تهدید می‌کنند!</p>
+          </div>
+        </a>
+      </div>
+    </div>
+    <a href="blog.php" class="btn btn-outline-secondary mt-3">مشاهده همه مقالات</a>
+  </div>
+</div>
+
+<button id="darkToggle" class="btn btn-outline-secondary btn-sm btn-toggle">🌙 حالت شب</button>
+
+<script>
+  async function loadPrices() {
+    try {
+      const res = await fetch("https://api.binance.com/api/v3/ticker/price");
+      const data = await res.json();
+      const btc = data.find(i => i.symbol === "BTCUSDT");
+      const eth = data.find(i => i.symbol === "ETHUSDT");
+      const bnb = data.find(i => i.symbol === "BNBUSDT");
+      document.getElementById("btcPrice").innerText = parseFloat(btc.price).toLocaleString() + " USDT";
+      document.getElementById("ethPrice").innerText = parseFloat(eth.price).toLocaleString() + " USDT";
+      document.getElementById("bnbPrice").innerText = parseFloat(bnb.price).toLocaleString() + " USDT";
+    } catch (e) {
+      document.getElementById("market").innerHTML = '<div class="alert alert-danger">خطا در دریافت قیمت‌ها ❌</div>';
+    }
+  }
+
+  loadPrices();
+
+  const body = document.body;
+  const nav = document.querySelector(".navbar");
+  const toggle = document.getElementById("darkToggle");
+
+  function applyTheme(isDark) {
+    if (isDark) {
+      body.classList.add("dark-mode");
+      nav.classList.remove("bg-light");
+      nav.classList.add("bg-dark", "navbar-dark");
+      document.querySelectorAll(".card").forEach(c => c.classList.add("dark-mode"));
+      toggle.innerText = "☀️ حالت روشن";
+    } else {
+      body.classList.remove("dark-mode");
+      nav.classList.remove("bg-dark", "navbar-dark");
+      nav.classList.add("bg-light");
+      document.querySelectorAll(".card").forEach(c => c.classList.remove("dark-mode"));
+      toggle.innerText = "🌙 حالت شب";
+    }
+  }
+
+  toggle.addEventListener("click", () => {
+    const isDark = !body.classList.contains("dark-mode");
+    applyTheme(isDark);
+    localStorage.setItem("darkMode", isDark ? "1" : "0");
+  });
+
+  window.onload = () => {
+    const saved = localStorage.getItem("darkMode") === "1";
+    applyTheme(saved);
+  };
+</script>
+<br><br>
+</body>
+</html>

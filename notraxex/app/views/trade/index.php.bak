@@ -1,0 +1,486 @@
+<?php require_once __DIR__ . '/../partials/header.php'; ?>
+
+
+<?php
+session_start();
+if (!isset($_SESSION["user_id"])) {
+    $_SESSION["redirect_after_login"] = $_SERVER["REQUEST_URI"];
+   header("Location: login.php?redirect=trade.php");
+exit;
+
+}
+
+
+
+$host = "localhost";
+$user = "root";
+$pass = "";
+$dbname = "notrax";
+$conn = new mysqli($host, $user, $pass, $dbname);
+if ($conn->connect_error) {
+  die("خطا در اتصال به پایگاه‌داده: " . $conn->connect_error);
+}
+
+// دریافت موجودی‌های کیف پول کاربر
+$balances = [];
+$q = $conn->query("SELECT currency, balance FROM wallets WHERE user_id = " . $_SESSION["user_id"]);
+while ($row = $q->fetch_assoc()) {
+  $balances[$row["currency"]] = $row["balance"];
+}
+
+
+
+
+?>
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>معامله | نوتراکس</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="icon" href="assets/img/favicon.jpg"> 
+ <style>
+    body.dark-mode { background-color: #0d1117; color: #e6edf3; }
+    .navbar.dark-mode { background-color: #161b22 !important; }
+    .btn-toggle { position: fixed; bottom: 20px; left: 20px; z-index: 999; }
+    .tab-content, .order-form, .card, .order-book, .trade-history {
+      background-color: #f9f9f9; border-radius: 12px; padding: 20px;
+    }
+    .dark-mode .order-form, .dark-mode .card, .dark-mode .tab-content,
+    .dark-mode .order-book, .dark-mode .trade-history {
+      background-color: #161b22; color: #e6edf3;
+    }
+    .form-control, .form-select { margin-bottom: 10px; }
+    .dark-mode .form-control, .dark-mode .form-select {
+      background-color: #0d1117; color: #e6edf3; border-color: #30363d;
+    }
+    .trade-area { margin-top: 30px; }
+    .buy { color: #16c784; }
+    .sell { color: #ea3943; }
+    .nav-tabs .nav-link.active.buy { background-color: #d0f5dd; color: #087443; }
+    .nav-tabs .nav-link.active.sell { background-color: #ffe0e0; color: #8b1d1d; }
+    .order-book { max-height: 300px; overflow-y: auto; font-size: 14px; }
+    .percent-buttons button {
+      margin: 0 3px;
+      font-size: 12px;
+    }
+  
+    .dark-mode .card,
+    .dark-mode .table {
+      background-color: #161b22;
+      color: #e6edf3;
+    }
+
+    .dark-mode .table thead th {
+      background-color: #21262d;
+      color: #e6edf3;
+    }
+    
+
+.dark-mode .table {
+  background-color: #161b22 !important;
+  color: #e6edf3 !important;
+}
+
+.dark-mode .table-striped tbody tr:nth-of-type(odd) {
+  background-color: #1f2937 !important;
+}
+
+.dark-mode .table-striped tbody tr:nth-of-type(even) {
+  background-color: #151b26 !important;
+}
+
+.dark-mode .table-bordered td,
+.dark-mode .table-bordered th {
+  border-color: #30363d !important;
+  background-color: #161b22 !important;
+  color: #e6edf3 !important;
+}
+
+.dark-mode .table thead {
+  background-color: #21262d !important;
+  color: #c9d1d9 !important;
+}
+
+.balance-label {
+    color:rgb(116, 117, 116); /* سبز تتر Binance‌طور */
+    font-weight: bold;
+  }
+
+</style>
+</head>
+<body>
+  <?php include 'header.php'; ?>
+
+<div class="container-fluid trade-area">
+  <div class="row">
+    <!-- Order Form -->
+    <div class="col-md-4">
+      <div class="order-form">
+        <ul class="nav nav-tabs" id="tradeTab" role="tablist">
+          <li class="nav-item">
+            <button class="nav-link active buy" data-bs-toggle="tab" data-bs-target="#buy-form"><i class="bi bi-cart-plus"></i> خرید</button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link sell" data-bs-toggle="tab" data-bs-target="#sell-form"><i class="bi bi-cart-dash"></i> فروش</button>
+          </li>
+        </ul>
+        <div class="tab-content mt-3">
+          <div class="tab-pane fade show active" id="buy-form">
+            <form method="post" action="trade_process.php">
+              <input type="hidden" name="type" value="buy">
+              <select class="form-select" name="symbol">
+                <option value="BTCUSDT">BTC/USDT</option>
+                <option value="ETHUSDT">ETH/USDT</option>
+              </select>
+              <select class="form-select order-type-select" name="order_type">
+                <option value="limit">Limit</option>
+                <option value="market">Market</option>
+              </select>
+              <input type="number" name="price" step="0.01" placeholder="قیمت (USDT)" class="form-control price-field">
+              <!-- <small id="usdtBalanceText" class="text-muted d-block mb-2"> -->
+
+<small id="usdtBalanceText" class="balance-label d-block mb-2">
+  موجودی: <?= number_format($balances["USDT"] ?? 0, 2) ?> USDT
+</small>
+
+
+
+  <!-- موجودی: <?= number_format($balances["USDT"] ?? 0, 2) ?> USDT
+</small> -->
+<input type="hidden" id="usdtBalance" data-value="<?= $balances["USDT"] ?? 0 ?>">
+
+
+
+              <input type="number" name="amount" step="0.0001" placeholder="مقدار" class="form-control amount-field">
+              <div class="percent-buttons text-center mb-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPercent(this, 25)">25%</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPercent(this, 50)">50%</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPercent(this, 75)">75%</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPercent(this, 100)">100%</button>
+              </div>
+              <div class="market-hint text-secondary small d-none">این سفارش با قیمت لحظه‌ای بازار اجرا خواهد شد.</div>
+              <button class="btn btn-success w-100 mt-2"><i class="bi bi-check2-circle"></i> ثبت سفارش خرید</button>
+            </form>
+          </div>
+          <div class="tab-pane fade" id="sell-form">
+            <form method="post" action="trade_process.php">
+              <input type="hidden" name="type" value="sell">
+              <select class="form-select" name="symbol">
+                <option value="BTCUSDT">BTC/USDT</option>
+                <option value="ETHUSDT">ETH/USDT</option>
+              </select>
+              <select class="form-select order-type-select" name="order_type">
+                <option value="limit">Limit</option>
+                <option value="market">Market</option>
+              </select>
+              <input type="number" name="price" step="0.01" placeholder="قیمت (USDT)" class="form-control price-field">
+
+<!-- <small id="cryptoBalanceText" class="text-muted d-block mb-2">
+  موجودی: <?= number_format($balances["BTC"] ?? 0, 6) ?> BTC
+</small> -->
+
+<small id="cryptoBalanceText" class="balance-label d-block mb-2">
+  موجودی: <?= number_format($balances["BTC"] ?? 0, 6) ?> BTC
+</small>
+
+
+
+<input type="hidden" id="btcBalance" data-value="<?= $balances["BTC"] ?? 0 ?>">
+<input type="hidden" id="ethBalance" data-value="<?= $balances["ETH"] ?? 0 ?>">
+
+
+              <input type="number" name="amount" step="0.0001" placeholder="مقدار" class="form-control amount-field">
+              <div class="percent-buttons text-center mb-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPercent(this, 25)">25%</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPercent(this, 50)">50%</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPercent(this, 75)">75%</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPercent(this, 100)">100%</button>
+              </div>
+              <div class="market-hint text-secondary small d-none">این سفارش با قیمت لحظه‌ای بازار اجرا خواهد شد.</div>
+              <button class="btn btn-danger w-100 mt-2"><i class="bi bi-x-circle"></i> ثبت سفارش فروش</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Order Book -->
+    <div class="col-md-4">
+      <div class="card p-3 shadow-sm">
+        <h6 class="text-center"><i class="bi bi-journal-text"></i> دفتر سفارشات</h6>
+        <div class="order-book" id="orderBook">در حال بارگذاری...</div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="col-md-4">
+      <div class="card p-2">
+        <h6 class="text-center"><i class="bi bi-bar-chart-line"></i> نمودار قیمت</h6>
+        <div id="tv_chart_container" style="height:350px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button id="darkToggle" class="btn btn-outline-secondary btn-sm btn-toggle"><i class="bi bi-moon"></i></button>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://s3.tradingview.com/tv.js"></script>
+<script>
+  new TradingView.widget({
+    "autosize": true,
+    "symbol": "BINANCE:BTCUSDT",
+    "interval": "30",
+    "timezone": "Asia/Tehran",
+    "theme": "dark",
+    "style": "1",
+    "locale": "fa_IR",
+    "container_id": "tv_chart_container"
+  });
+
+  async function fetchOrderBook() {
+    const res = await fetch("https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=10");
+    const data = await res.json();
+    const container = document.getElementById("orderBook");
+    container.innerHTML = '<div class="text-success mb-2">خرید</div>' +
+      data.bids.map(b => `<div class='text-success'>${parseFloat(b[0]).toFixed(2)} / ${parseFloat(b[1]).toFixed(4)}</div>`).join('') +
+      '<div class="text-danger mt-3">فروش</div>' +
+      data.asks.map(a => `<div class='text-danger'>${parseFloat(a[0]).toFixed(2)} / ${parseFloat(a[1]).toFixed(4)}</div>`).join('');
+  }
+
+  fetchOrderBook();
+  setInterval(fetchOrderBook, 10000);
+
+  function setPercent(btn, percent) {
+    const form = btn.closest("form");
+    const amountField = form.querySelector(".amount-field");
+    const balance = 1000; // placeholder for real balance
+    amountField.value = ((balance * percent) / 100).toFixed(4);
+  }
+
+  const toggle = document.getElementById("darkToggle");
+  const body = document.body;
+  const nav = document.querySelector(".navbar");
+
+  function applyTheme(isDark) {
+    if (isDark) {
+      body.classList.add("dark-mode");
+      nav.classList.remove("bg-light");
+      nav.classList.add("bg-dark", "navbar-dark");
+      toggle.innerHTML = '<i class="bi bi-sun"></i>';
+    } else {
+      body.classList.remove("dark-mode");
+      nav.classList.remove("bg-dark", "navbar-dark");
+      nav.classList.add("bg-light");
+      toggle.innerHTML = '<i class="bi bi-moon"></i>';
+    }
+  }
+
+  toggle.addEventListener("click", () => {
+    const isDark = !body.classList.contains("dark-mode");
+    applyTheme(isDark);
+    localStorage.setItem("darkMode", isDark ? "1" : "0");
+  });
+
+  window.onload = () => {
+    const saved = localStorage.getItem("darkMode") === "1";
+    applyTheme(saved);
+    document.querySelectorAll(".order-type-select").forEach(sel => {
+      sel.addEventListener("change", () => {
+        const form = sel.closest("form");
+        const priceField = form.querySelector(".price-field");
+        const hint = form.querySelector(".market-hint");
+        if (sel.value === "market") {
+          priceField.classList.add("d-none");
+          priceField.removeAttribute("required");
+          hint.classList.remove("d-none");
+        } else {
+          priceField.classList.remove("d-none");
+          priceField.setAttribute("required", "required");
+          hint.classList.add("d-none");
+        }
+      });
+    });
+  };
+
+document.addEventListener("DOMContentLoaded", () => {
+  // فرم خرید (همیشه USDT)
+  const buySymbol = document.querySelector('#buy-form select[name="symbol"]');
+  const usdtText = document.getElementById("usdtBalanceText");
+  buySymbol.addEventListener("change", () => {
+    const usdt = document.getElementById("usdtBalance").dataset.value;
+    usdtText.innerText = `موجودی: ${parseFloat(usdt).toFixed(2)} USDT`;
+  });
+
+  // فرم فروش (BTC یا ETH)
+  const sellSymbol = document.querySelector('#sell-form select[name="symbol"]');
+  const cryptoText = document.getElementById("cryptoBalanceText");
+  sellSymbol.addEventListener("change", () => {
+    const coin = sellSymbol.value.replace("USDT", "");
+    const balance = document.getElementById(coin.toLowerCase() + "Balance").dataset.value;
+    cryptoText.innerText = `موجودی: ${parseFloat(balance).toFixed(6)} ${coin}`;
+  });
+});
+
+
+</script>
+
+<div class="container mt-5">
+  <div class="card p-3 shadow-sm">
+    <ul class="nav nav-tabs mb-3" id="historyTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="open-tab" data-bs-toggle="tab" data-bs-target="#open-orders" type="button">سفارش‌های باز</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-orders" type="button">تاریخچه معاملات</button>
+      </li>
+      <li class="nav-item" role="presentation">
+  <button class="nav-link" id="pnl-tab" data-bs-toggle="tab" data-bs-target="#pnl-tab-pane" type="button">سود و زیان</button>
+</li>
+
+    </ul>
+    <div class="tab-content" id="historyTabsContent">
+
+    <div class="tab-pane fade" id="pnl-tab-pane" role="tabpanel">
+  <div class="table-responsive">
+    <table class="table table-bordered text-center align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>ارز</th>
+          <th>مقدار خرید</th>
+          <th>مقدار فروش</th>
+          <th>میانگین قیمت خرید</th>
+          <th>میانگین قیمت فروش</th>
+          <th>سود / زیان (USDT)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php
+        $symbols = ["BTCUSDT", "ETHUSDT"];
+        foreach ($symbols as $sym):
+          $buyQ = $conn->query("SELECT SUM(amount) as total, SUM(amount * price) as total_usdt FROM transactions WHERE user_id = {$_SESSION['user_id']} AND type = 'buy' AND symbol = '$sym'");
+          $buy = $buyQ->fetch_assoc();
+
+          $sellQ = $conn->query("SELECT SUM(amount) as total, SUM(amount * price) as total_usdt FROM transactions WHERE user_id = {$_SESSION['user_id']} AND type = 'sell' AND symbol = '$sym'");
+          $sell = $sellQ->fetch_assoc();
+
+          $avg_buy = ($buy['total'] ?? 0) > 0 ? ($buy['total_usdt'] / $buy['total']) : 0;
+          $avg_sell = ($sell['total'] ?? 0) > 0 ? ($sell['total_usdt'] / $sell['total']) : 0;
+
+          $profit = ($sell['total_usdt'] ?? 0) - ($buy['total_usdt'] ?? 0);
+          $coin = str_replace("USDT", "", $sym);
+        ?>
+        <tr>
+          <td><?= $coin ?></td>
+          <td><?= number_format($buy['total'] ?? 0, 4) ?></td>
+          <td><?= number_format($sell['total'] ?? 0, 4) ?></td>
+          <td><?= number_format($avg_buy, 2) ?></td>
+          <td><?= number_format($avg_sell, 2) ?></td>
+          <td class="<?= $profit >= 0 ? 'text-success' : 'text-danger' ?>">
+            <?= number_format($profit, 2) ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+<!-- سفارش‌های باز -->
+<div class="tab-pane fade show active" id="open-orders" role="tabpanel">
+  <?php
+  $openOrders = $conn->query("SELECT type, symbol, amount, price, order_type, created_at 
+                               FROM transactions 
+                               WHERE user_id = {$_SESSION['user_id']} AND status = 'pending'
+                               ORDER BY created_at DESC");
+
+  if ($openOrders && $openOrders->num_rows > 0): ?>
+    <div class="table-responsive">
+      <table class="table table-bordered table-striped text-center align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>نوع</th>
+            <th>ارز</th>
+            <th>مقدار</th>
+            <th>قیمت</th>
+            <th>نوع سفارش</th>
+            <th>زمان</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php while ($o = $openOrders->fetch_assoc()): ?>
+          <tr>
+            <td class="<?= $o['type'] === 'buy' ? 'text-success' : 'text-danger' ?>">
+              <?= $o['type'] === 'buy' ? 'خرید' : 'فروش' ?>
+            </td>
+            <td><?= htmlspecialchars($o['symbol']) ?></td>
+            <td><?= number_format($o['amount'], 4) ?></td>
+            <td><?= $o['order_type'] === 'market' ? 'قیمت بازار' : number_format($o['price'], 2) ?></td>
+            <td><?= $o['order_type'] === 'market' ? 'Market' : 'Limit' ?></td>
+            <td><?= $o['created_at'] ?></td>
+          </tr>
+          <?php endwhile; ?>
+        </tbody>
+      </table>
+    </div>
+  <?php else: ?>
+    <div class="text-center text-muted">سفارشی در انتظار تأیید نیست.</div>
+  <?php endif; ?>
+</div>
+
+<!-- پایان سفارش‌های باز -->
+
+
+<!-- شروع تاریخچه معاملات -->
+<div class="tab-pane fade" id="history-orders" role="tabpanel">
+  <?php
+  $result = $conn->query("SELECT type, symbol, amount, price, order_type, status, created_at 
+                          FROM transactions 
+                          WHERE user_id = {$_SESSION['user_id']} 
+                          ORDER BY created_at DESC LIMIT 20");
+
+  if ($result && $result->num_rows > 0): ?>
+    <div class="table-responsive">
+      <table class="table table-bordered table-striped text-center align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>نوع</th>
+            <th>ارز</th>
+            <th>مقدار</th>
+            <th>قیمت</th>
+            <th>نوع سفارش</th>
+            <th>وضعیت</th>
+            <th>تاریخ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php while ($row = $result->fetch_assoc()): ?>
+          <tr>
+            <td class="<?= $row['type'] === 'buy' ? 'text-success' : 'text-danger' ?>">
+              <?= $row['type'] === 'buy' ? 'خرید' : 'فروش' ?>
+            </td>
+            <td><?= htmlspecialchars($row['symbol']) ?></td>
+            <td><?= number_format($row['amount'], 4) ?></td>
+            <td><?= $row['order_type'] === 'market' ? 'قیمت بازار' : number_format($row['price'], 2) ?></td>
+            <td><?= $row['order_type'] === 'market' ? 'Market' : 'Limit' ?></td>
+            <td>
+              <?= $row['status'] === 'approved' ? 'تأیید شده' : ($row['status'] === 'rejected' ? 'رد شده' : 'در انتظار') ?>
+            </td>
+            <td><?= $row['created_at'] ?></td>
+          </tr>
+          <?php endwhile; ?>
+        </tbody>
+      </table>
+    </div>
+  <?php else: ?>
+    <div class="text-center text-muted">هیچ معامله‌ای ثبت نشده است.</div>
+  <?php endif; ?>
+</div>
+<!-- پایان تاریخچه معاملات -->
+
+</body>
+</html>
+
